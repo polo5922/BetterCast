@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0"
+     xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Le Podcast Vidéo</title>
+    <link>https://example.com</link>
+    <language>fr</language>
+    <description>Un podcast en audio et en vidéo.</description>
+    <itunes:author>Jane Doe</itunes:author>
+    <itunes:image href="https://example.com/cover.jpg"/>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:category text="Technology">
+      <itunes:category text="Podcasting"/>
+    </itunes:category>
+    <podcast:guid>917393e3-1b1e-5cef-ace4-edaa54e1f810</podcast:guid>
+    <item>
+      <title>Épisode 2 : la vidéo</title>
+      <guid isPermaLink="false">ep-2</guid>
+      <pubDate>Tue, 24 Nov 2026 08:30:00 +0100</pubDate>
+      <description>Résumé court</description>
+      <content:encoded><![CDATA[<p>Notes <b>complètes</b></p>]]></content:encoded>
+      <itunes:duration>1:02:03</itunes:duration>
+      <itunes:episode>2</itunes:episode>
+      <itunes:season>1</itunes:season>
+      <itunes:image href="https://example.com/ep2.jpg"/>
+      <enclosure url="https://cdn.example.com/ep2.mp3" length="12345" type="audio/mpeg"/>
+      <podcast:alternateEnclosure type="video/mp4" length="999999" height="1080" title="1080p">
+        <podcast:source uri="ipfs://Qm123"/>
+        <podcast:source uri="https://cdn.example.com/ep2-1080.mp4"/>
+      </podcast:alternateEnclosure>
+      <podcast:alternateEnclosure type="video/mp4" height="720" title="720p">
+        <podcast:source uri="https://cdn.example.com/ep2-720.mp4"/>
+      </podcast:alternateEnclosure>
+      <podcast:transcript url="https://example.com/ep2.vtt" type="text/vtt" language="fr"/>
+      <podcast:transcript url="https://example.com/ep2.html" type="text/html"/>
+      <podcast:chapters url="https://example.com/ep2.json" type="application/json+chapters"/>
+    </item>
+    <item>
+      <title>Épisode 1</title>
+      <guid>ep-1</guid>
+      <pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate>
+      <description>Le premier</description>
+      <itunes:duration>3600</itunes:duration>
+      <enclosure url="https://cdn.example.com/ep1.mp4" length="1" type="video/mp4"/>
+      <media:content url="https://cdn.example.com/ep1.m4a" type="audio/mp4" medium="audio"/>
+    </item>
+    <item>
+      <title>Bande-annonce sans média</title>
+      <guid>trailer</guid>
+    </item>
+    <item>
+      <title>Épisode 1</title>
+      <guid>ep-1</guid>
+      <enclosure url="https://cdn.example.com/ep1-dup.mp3" type="audio/mpeg"/>
+    </item>
+  </channel>
+</rss>

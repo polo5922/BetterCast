@@ -1,0 +1,7 @@
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8080 {
+		# Server-Sent Events: never buffer.
+		flush_interval -1
+	}
+}

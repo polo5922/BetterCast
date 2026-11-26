@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+  <channel>
+    <title>Creator Premium (patrons only)</title>
+    <link>https://www.patreon.com/creator</link>
+    <description>Private feed for patrons.</description>
+    <image>
+      <url>https://c10.patreonusercontent.com/cover.png</url>
+      <title>Creator</title>
+      <link>https://www.patreon.com/creator</link>
+    </image>
+    <item>
+      <title>Bonus episode #12</title>
+      <guid isPermaLink="false">patreon-post-123456</guid>
+      <pubDate>Wed, 25 Nov 2026 18:00:00 EST</pubDate>
+      <description><![CDATA[<p>Exclusive bonus.</p>]]></description>
+      <enclosure url="https://c10.patreonusercontent.com/audio.mp3?token-time=1&amp;token-hash=abc" type="audio/mpeg" length="42"/>
+      <itunes:duration>45:30</itunes:duration>
+    </item>
+  </channel>
+</rss>

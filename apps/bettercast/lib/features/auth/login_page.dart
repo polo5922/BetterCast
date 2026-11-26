@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../ui/widgets.dart';
+
 import '../../core/config.dart';
 import '../../core/providers.dart';
 
@@ -60,11 +62,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               key: _form,
               child: AutofillGroup(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Icon(Icons.podcasts, size: 64, color: theme.colorScheme.primary),
-                  const SizedBox(height: 8),
+                  const Center(child: BrandMark(size: 84)),
+                  const SizedBox(height: 20),
                   Text('BetterCast',
-                      textAlign: TextAlign.center, style: theme.textTheme.headlineMedium),
-                  const SizedBox(height: 32),
+                      textAlign: TextAlign.center, style: theme.textTheme.displaySmall),
+                  const SizedBox(height: 6),
+                  Text('Tous tes podcasts, publics et Patreon, au même endroit.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 36),
                   if (_customServer) ...[
                     TextFormField(
                       controller: _server,

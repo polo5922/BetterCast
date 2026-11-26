@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../core/providers.dart';
+import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'player_controller.dart';
 import 'player_providers.dart';
@@ -16,44 +17,71 @@ class PlayerPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = ref.watch(playerProvider);
-    final item = p.current;
-    final theme = Theme.of(context);
+    final item = ref.watch(playerProvider.select((p) => p.current));
     if (item == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const EmptyState(icon: Icons.headphones, text: 'Rien en lecture'),
+        body: const EmptyState(icon: Icons.headphones_rounded, text: 'Rien en lecture'),
       );
     }
+    return ArtworkTheme(
+      artworkUrl: item.episode.imageUrl ?? item.podcast.imageUrl,
+      child: Builder(builder: (context) => _build(context, ref)),
+    );
+  }
+
+  Widget _build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(playerProvider);
+    final item = p.current!;
+    final theme = Theme.of(context);
+    final s = theme.colorScheme;
     final e = item.episode;
     final liked = ref.watch(episodeStateProvider(e.id)).liked;
+    final cover = e.imageUrl ?? item.podcast.imageUrl;
 
     final media = p.isVideo
         ? AspectRatio(
             aspectRatio: 16 / 9,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
               child: Video(controller: p.videoController, controls: MaterialVideoControls),
             ),
           )
         : LayoutBuilder(
             builder: (_, c) => Center(
-              child: Artwork(e.imageUrl ?? item.podcast.imageUrl,
-                  size: c.maxWidth.clamp(120.0, 360.0), radius: 20),
+              child: AnimatedScale(
+                scale: p.playing ? 1 : 0.86,
+                duration: const Duration(milliseconds: 450),
+                curve: Curves.easeOutBack,
+                child: Artwork(cover,
+                    size: c.biggest.shortestSide.clamp(120.0, 380.0), radius: 28, shadow: true),
+              ),
             ),
           );
 
     return Scaffold(
+      backgroundColor: s.surface,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32),
           onPressed: () => context.pop(),
         ),
-        title: Text(item.podcast.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        centerTitle: true,
+        title: Column(children: [
+          Text('EN LECTURE',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(letterSpacing: 2, color: s.onSurfaceVariant, fontWeight: FontWeight.w800)),
+          Text(item.podcast.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall),
+        ]),
         actions: [
           IconButton(
             tooltip: "Détails de l'épisode",
-            icon: const Icon(Icons.info_outline),
+            icon: const Icon(Icons.info_outline_rounded),
             onPressed: () => context.push('/episode', extra: item),
           ),
           IconButton(
@@ -61,95 +89,130 @@ class PlayerPage extends ConsumerWidget {
             icon: Badge(
               isLabelVisible: p.queue.isNotEmpty,
               label: Text('${p.queue.length}'),
-              child: const Icon(Icons.queue_music),
+              child: const Icon(Icons.queue_music_rounded),
             ),
             onPressed: () => showModalBottomSheet<void>(
               context: context,
-              showDragHandle: true,
               builder: (_) => const _QueueSheet(),
             ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(children: [
-                const SizedBox(height: 8),
-                Expanded(child: Center(child: media)),
-                const SizedBox(height: 16),
-                Text(e.title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Wrap(spacing: 6, children: episodeBadges(e)),
-                const SizedBox(height: 8),
-                _SeekBar(p),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                  IconButton(
-                    iconSize: 32,
-                    tooltip: 'Reculer de 15 s',
-                    icon: const Icon(Icons.replay_10),
-                    onPressed: () => p.skip(const Duration(seconds: -15)),
-                  ),
-                  IconButton.filled(
-                    iconSize: 48,
-                    tooltip: p.playing ? 'Pause' : 'Lecture',
-                    icon: Icon(p.playing ? Icons.pause : Icons.play_arrow),
-                    onPressed: p.playPause,
-                  ),
-                  IconButton(
-                    iconSize: 32,
-                    tooltip: 'Avancer de 30 s',
-                    icon: const Icon(Icons.forward_30),
-                    onPressed: () => p.skip(const Duration(seconds: 30)),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                  PopupMenuButton<double>(
-                    tooltip: 'Vitesse',
-                    initialValue: p.rate,
-                    onSelected: p.setRate,
-                    itemBuilder: (_) => [
-                      for (final r in _rates) PopupMenuItem(value: r, child: Text('${r}x')),
-                    ],
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text('${p.rate}x', style: theme.textTheme.labelLarge),
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [s.primary.withValues(alpha: 0.45), s.primaryContainer.withValues(alpha: 0.25), s.surface],
+            stops: const [0, 0.45, 0.9],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(children: [
+                  const SizedBox(height: 16),
+                  Expanded(child: Center(child: media)),
+                  const SizedBox(height: 28),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(e.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, height: 1.15)),
+                        const SizedBox(height: 4),
+                        Text(item.podcast.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: s.primary, fontWeight: FontWeight.w700)),
+                        if (episodeBadges(e).isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(spacing: 6, children: episodeBadges(e)),
+                        ],
+                      ]),
                     ),
-                  ),
-                  if (e.canSwitchMedia)
-                    SegmentedButton<MediaKind>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(value: MediaKind.audio, icon: Icon(Icons.headphones)),
-                        ButtonSegment(value: MediaKind.video, icon: Icon(Icons.videocam)),
-                      ],
-                      selected: {p.isVideo ? MediaKind.video : MediaKind.audio},
-                      onSelectionChanged: (s) => p.switchTo(s.first),
+                    IconButton(
+                      iconSize: 28,
+                      tooltip: liked ? 'Retirer des likés' : 'Liker',
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                        child: Icon(
+                          liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          key: ValueKey(liked),
+                          color: liked ? Brand.ember : null,
+                        ),
+                      ),
+                      onPressed: () => ref.read(episodeStatesProvider.notifier).toggleLike(e),
                     ),
-                  IconButton(
-                    tooltip: 'Minuterie',
-                    icon: Icon(p.sleepAt != null || p.sleepAtEndOfEpisode
-                        ? Icons.bedtime
-                        : Icons.bedtime_outlined),
-                    onPressed: () => _sleepMenu(context, p),
+                  ]),
+                  const SizedBox(height: 12),
+                  _SeekBar(p),
+                  const SizedBox(height: 4),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                    IconButton(
+                      iconSize: 36,
+                      tooltip: 'Reculer de 15 s',
+                      icon: const Icon(Icons.replay_10_rounded),
+                      onPressed: () => p.skip(const Duration(seconds: -15)),
+                    ),
+                    _BigPlayButton(playing: p.playing, buffering: p.buffering, onPressed: p.playPause),
+                    IconButton(
+                      iconSize: 36,
+                      tooltip: 'Avancer de 30 s',
+                      icon: const Icon(Icons.forward_30_rounded),
+                      onPressed: () => p.skip(const Duration(seconds: 30)),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: s.onSurface.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                      PopupMenuButton<double>(
+                        tooltip: 'Vitesse',
+                        initialValue: p.rate,
+                        onSelected: p.setRate,
+                        itemBuilder: (_) => [
+                          for (final r in _rates) PopupMenuItem(value: r, child: Text('${r}x')),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text('${p.rate}x', style: theme.textTheme.labelLarge),
+                        ),
+                      ),
+                      if (e.canSwitchMedia)
+                        SegmentedButton<MediaKind>(
+                          showSelectedIcon: false,
+                          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                          segments: const [
+                            ButtonSegment(value: MediaKind.audio, icon: Icon(Icons.headphones_rounded)),
+                            ButtonSegment(value: MediaKind.video, icon: Icon(Icons.videocam_rounded)),
+                          ],
+                          selected: {p.isVideo ? MediaKind.video : MediaKind.audio},
+                          onSelectionChanged: (sel) => p.switchTo(sel.first),
+                        ),
+                      IconButton(
+                        tooltip: 'Minuterie',
+                        icon: Icon(p.sleepAt != null || p.sleepAtEndOfEpisode
+                            ? Icons.bedtime_rounded
+                            : Icons.bedtime_outlined),
+                        color: p.sleepAt != null || p.sleepAtEndOfEpisode ? s.primary : null,
+                        onPressed: () => _sleepMenu(context, p),
+                      ),
+                    ]),
                   ),
-                  IconButton(
-                    tooltip: liked ? 'Retirer des likés' : 'Liker',
-                    icon: Icon(liked ? Icons.favorite : Icons.favorite_border,
-                        color: liked ? Colors.redAccent : null),
-                    onPressed: () => ref.read(episodeStatesProvider.notifier).toggleLike(e),
-                  ),
+                  const SizedBox(height: 20),
                 ]),
-                const SizedBox(height: 16),
-              ]),
+              ),
             ),
           ),
         ),
@@ -272,5 +335,47 @@ class _QueueSheet extends ConsumerWidget {
           },
         ),
     ]);
+  }
+}
+
+class _BigPlayButton extends StatelessWidget {
+  const _BigPlayButton({required this.playing, required this.buffering, required this.onPressed});
+  final bool playing;
+  final bool buffering;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Theme.of(context).colorScheme;
+    return Container(
+      width: 84,
+      height: 84,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: s.primary,
+        boxShadow: [
+          BoxShadow(color: s.primary.withValues(alpha: 0.45), blurRadius: 28, offset: const Offset(0, 10)),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Center(
+            child: buffering
+                ? SizedBox(
+                    width: 32, height: 32,
+                    child: CircularProgressIndicator(color: s.onPrimary, strokeWidth: 3))
+                : AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                    child: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        key: ValueKey(playing), size: 48, color: s.onPrimary),
+                  ),
+          ),
+        ),
+      ),
+    );
   }
 }

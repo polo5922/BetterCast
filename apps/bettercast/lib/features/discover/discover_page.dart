@@ -92,7 +92,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   builder: (list) => list.isEmpty
                       ? const EmptyState(icon: Icons.search_off, text: 'Aucun résultat')
                       : ListView(children: [
-                          const _Header('Résultats'),
+                          const SectionHeader('Résultats'),
                           for (final r in list) SearchResultTile(r),
                         ]),
                 ),
@@ -113,7 +113,7 @@ class _DiscoverHome extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () => ref.refresh(trendingProvider(null).future),
       child: ListView(children: [
-        const _Header('Thèmes'),
+        const SectionHeader('Thèmes'),
         SizedBox(
           height: 2 * _cardH + 8,
           child: GridView.count(
@@ -129,7 +129,7 @@ class _DiscoverHome extends ConsumerWidget {
             ],
           ),
         ),
-        const _Header('Tendances'),
+        const SectionHeader('Tendances'),
         ...switch (top) {
           AsyncData(:final value) when value.isNotEmpty => [
               SizedBox(
@@ -194,17 +194,6 @@ class ThemePage extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _Header extends StatelessWidget {
-  const _Header(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-      );
 }
 
 /// Makes sure the server knows the feed, then opens it.

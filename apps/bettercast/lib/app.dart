@@ -18,6 +18,8 @@ import 'features/patreon/patreon_page.dart';
 import 'features/settings/settings_page.dart';
 import 'player/mini_player.dart';
 import 'player/player_page.dart';
+import 'ui/theme.dart';
+import 'ui/widgets.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 
@@ -137,15 +139,11 @@ class _BetterCastAppState extends ConsumerState<BetterCastApp> {
 
   @override
   Widget build(BuildContext context) {
-    ThemeData theme(Brightness b) => ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6750A4), brightness: b),
-        );
     return MaterialApp.router(
       title: 'BetterCast',
       debugShowCheckedModeBanner: false,
-      theme: theme(Brightness.light),
-      darkTheme: theme(Brightness.dark),
+      theme: ref.watch(brandThemeProvider(Brightness.light)),
+      darkTheme: ref.watch(brandThemeProvider(Brightness.dark)),
       routerConfig: ref.watch(routerProvider),
     );
   }
@@ -157,10 +155,10 @@ class _Shell extends StatelessWidget {
   final StatefulNavigationShell shell;
 
   static const _dest = [
-    (Icons.inbox_outlined, Icons.inbox, 'Nouveautés'),
+    (Icons.auto_awesome_outlined, Icons.auto_awesome, 'Nouveautés'),
     (Icons.explore_outlined, Icons.explore, 'Découvrir'),
-    (Icons.video_library_outlined, Icons.video_library, 'Bibliothèque'),
-    (Icons.settings_outlined, Icons.settings, 'Réglages'),
+    (Icons.library_music_outlined, Icons.library_music, 'Bibliothèque'),
+    (Icons.tune_outlined, Icons.tune, 'Réglages'),
   ];
 
   void _go(int i) => shell.goBranch(i, initialLocation: i == shell.currentIndex);
@@ -175,9 +173,9 @@ class _Shell extends StatelessWidget {
             selectedIndex: shell.currentIndex,
             onDestinationSelected: _go,
             labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Icon(Icons.podcasts, size: 32, color: Theme.of(context).colorScheme.primary),
+            leading: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: BrandMark(size: 44),
             ),
             destinations: [
               for (final d in _dest)
@@ -213,8 +211,11 @@ class _WithMiniPlayer extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Column(children: [
-        Expanded(child: child),
-        const Material(child: SafeArea(top: false, child: MiniPlayer())),
-      ]);
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: Column(children: [
+          Expanded(child: child),
+          const SafeArea(top: false, child: MiniPlayer()),
+        ]),
+      );
 }

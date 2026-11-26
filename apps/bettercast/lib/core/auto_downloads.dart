@@ -7,7 +7,10 @@ import 'downloads.dart';
 import 'local_db.dart';
 import 'providers.dart';
 
-/// Per-podcast auto-download: keeps the latest 1 or 2 episodes on the device.
+/// Choices offered in the UI (0 = off).
+const kAutoDownloadChoices = [0, 1, 2, 3, 4, 5, 10];
+
+/// Per-podcast auto-download: keeps the latest N episodes on the device.
 /// Stored locally (downloads are per device), keyed `autodl:<podcastId>`.
 class AutoDownloads extends Notifier<Map<String, int>> {
   static const _prefix = 'autodl:';

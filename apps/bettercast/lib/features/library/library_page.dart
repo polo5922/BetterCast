@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/downloads.dart';
+import '../../core/auto_downloads.dart';
 import '../../core/providers.dart';
+import '../../ui/auto_download_sheet.dart';
 import '../../ui/widgets.dart';
 
 class LibraryPage extends ConsumerWidget {
@@ -16,7 +18,10 @@ class LibraryPage extends ConsumerWidget {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Bibliothèque'),
-            bottom: const TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+            bottom: const TabBar(
+                isScrollable: true,
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                tabs: [
               Tab(text: 'Abonnements'),
               Tab(text: 'En cours'),
               Tab(text: 'Likés'),
@@ -51,39 +56,15 @@ class _Subscriptions extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () => ref.refresh(subscriptionsProvider.future),
           child: GridView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 160,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.78,
+              maxCrossAxisExtent: 170,
+              mainAxisSpacing: 18,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.74,
             ),
             itemCount: sorted.length,
-            itemBuilder: (_, i) {
-              final p = sorted[i].podcast;
-              return InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => context.push('/podcast/${p.id}'),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: Stack(fit: StackFit.expand, children: [
-                      LayoutBuilder(
-                          builder: (_, c) => Artwork(p.imageUrl, size: c.maxWidth, radius: 12)),
-                      if (p.isPremium)
-                        const Positioned(
-                          top: 6,
-                          right: 6,
-                          child: Badge2('Patreon', icon: Icons.star, color: premiumColor),
-                        ),
-                    ]),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium),
-                ]),
-              );
-            },
+            itemBuilder: (_, i) => _SubscriptionTile(sorted[i].podcast),
           ),
         );
       },
@@ -112,10 +93,9 @@ class _EpisodeList extends ConsumerWidget {
             )
           : RefreshIndicator(
               onRefresh: () => ref.read(episodeStatesProvider.notifier).sync(),
-              child: ListView.separated(
+              child: ListView.builder(
                 itemCount: items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1, indent: 92),
-                itemBuilder: (_, i) => EpisodeTile(items[i]),
+                                itemBuilder: (_, i) => EpisodeTile(items[i]),
               ),
             ),
     );
@@ -132,10 +112,79 @@ class _Downloads extends ConsumerWidget {
       return const EmptyState(
           icon: Icons.download_outlined, text: 'Télécharge des épisodes pour les écouter hors-ligne.');
     }
-    return ListView.separated(
+    return ListView.builder(
       itemCount: downloads.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 92),
-      itemBuilder: (_, i) => EpisodeTile(downloads[i].item),
+            itemBuilder: (_, i) => EpisodeTile(downloads[i].item),
     );
   }
+}
+
+class _SubscriptionTile extends ConsumerWidget {
+  const _SubscriptionTile(this.podcast);
+  final Podcast podcast;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = podcast;
+    final auto = ref.watch(autoDownloadsProvider.select((m) => m[p.id] ?? 0));
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onLongPress: () => showAutoDownloadSheet(context, p),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push('/podcast/${p.id}'),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: Stack(fit: StackFit.expand, children: [
+              LayoutBuilder(
+                  builder: (_, c) => Artwork(p.imageUrl, size: c.maxWidth, radius: 20, shadow: true)),
+              if (p.isPremium)
+                const Positioned(
+                  top: 8,
+                  left: 8,
+                  child: _Pill(icon: Icons.star_rounded, color: premiumColor),
+                ),
+              if (auto > 0)
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: _Pill(icon: Icons.download_rounded, label: '$auto',
+                      color: theme.colorScheme.primary),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Text(p.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(height: 1.2)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Small glassy marker drawn over a cover.
+class _Pill extends StatelessWidget {
+  const _Pill({required this.icon, required this.color, this.label});
+  final IconData icon;
+  final Color color;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: color),
+          if (label != null) ...[
+            const SizedBox(width: 3),
+            Text(label!, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+          ],
+        ]),
+      );
 }

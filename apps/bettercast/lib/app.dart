@@ -32,6 +32,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/feed',
     refreshListenable: signedIn,
     redirect: (_, state) {
+      // bettercast:// links are handled by app_links (see _BetterCastAppState).
+      if (state.uri.scheme == 'bettercast') return '/feed';
       final atLogin = state.matchedLocation == '/login';
       if (!signedIn.value) return atLogin ? null : '/login';
       if (atLogin) return '/feed';

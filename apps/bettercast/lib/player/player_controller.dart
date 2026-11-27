@@ -52,6 +52,12 @@ class PlayerController extends ChangeNotifier {
   double _rate = 1.0;
   bool _switching = false;
   bool _backgroundAudioOnly = false;
+  bool _loading = false;
+
+  /// Called before playback starts (Android: takes audio focus so the
+  /// system, Bluetooth and Android Auto route audio to this app).
+  /// Returning false cancels playback.
+  Future<bool> Function()? onBeforePlay;
   Timer? _sleepTimer;
   DateTime? _sleepAt;
   bool _sleepAtEndOfEpisode = false;
@@ -61,6 +67,9 @@ class PlayerController extends ChangeNotifier {
   bool get isVideo => _variant?.kind == MediaKind.video;
   bool get playing => player.state.playing;
   bool get buffering => player.state.buffering;
+
+  /// True while a new stream is being opened.
+  bool get loading => _loading;
   Duration get position => player.state.position;
   Duration? get duration => _duration ?? _current?.episode.duration;
   double get rate => _rate;
@@ -71,9 +80,10 @@ class PlayerController extends ChangeNotifier {
   /// Starts [item]. Resumes from the saved position unless [start] is given.
   Future<void> play(FeedItem item, {MediaKind? kind, Duration? start, bool autoplay = true}) async {
     if (_current?.episode.id == item.episode.id && kind == null && start == null) {
-      if (!playing) await player.play();
+      if (!playing) await resume();
       return;
     }
+    if (autoplay && !await _requestFocus()) return;
     _persist();
     final e = item.episode;
     final v = _pick(e, kind ?? _preferredKind(e));
@@ -100,6 +110,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> _open(MediaVariant v, Duration start, {bool autoplay = true}) async {
     final local = _store.localPath(_current!.episode, v);
     _switching = true;
+    _loading = true;
+    notifyListeners();
     try {
       await player.open(
         Media(local ?? v.url, start: start > Duration.zero ? start : null),
@@ -108,6 +120,8 @@ class PlayerController extends ChangeNotifier {
       await player.setRate(_rate);
     } finally {
       _switching = false;
+      _loading = false;
+      notifyListeners();
     }
   }
 
@@ -138,7 +152,7 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> playPause() => playing ? pause() : resume();
   Future<void> resume() async {
-    if (_current == null) return;
+    if (_current == null || !await _requestFocus()) return;
     await player.play();
   }
 
@@ -218,6 +232,17 @@ class PlayerController extends ChangeNotifier {
       await play(queue.removeAt(0));
     } else {
       notifyListeners();
+    }
+  }
+
+  Future<bool> _requestFocus() async {
+    final hook = onBeforePlay;
+    if (hook == null) return true;
+    try {
+      return await hook();
+    } catch (e) {
+      debugPrint('audio focus: $e');
+      return true;
     }
   }
 

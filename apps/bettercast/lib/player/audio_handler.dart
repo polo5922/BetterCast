@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:bettercast_core/bettercast_core.dart';
 
 import 'player_controller.dart';
@@ -23,6 +24,34 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
     controller.addListener(_sync);
     _posSub = controller.positionStream.listen((_) => _throttledSync());
     _sync();
+    unawaited(_initAudioSession());
+  }
+
+  bool _resumeAfterInterruption = false;
+
+  /// Audio focus: without it Android (and Android Auto) keep treating the
+  /// previous media app as the active one and don't route our audio.
+  Future<void> _initAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.speech());
+    controller.onBeforePlay = () => session.setActive(true);
+    session.interruptionEventStream.listen((e) {
+      if (e.begin) {
+        // Phone call, navigation prompt, another app playing...
+        // Spoken content pauses instead of ducking.
+        if (controller.playing) {
+          _resumeAfterInterruption = e.type != AudioInterruptionType.unknown;
+          unawaited(controller.pause());
+        }
+      } else {
+        if (_resumeAfterInterruption && e.type != AudioInterruptionType.unknown) {
+          unawaited(controller.resume());
+        }
+        _resumeAfterInterruption = false;
+      }
+    });
+    // Headphones unplugged / Bluetooth or car disconnected.
+    session.becomingNoisyEventStream.listen((_) => unawaited(controller.pause()));
   }
 
   final PlayerController controller;
@@ -70,10 +99,14 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
       androidCompactActionIndices: const [0, 1, 2],
       processingState: item == null
           ? AudioProcessingState.idle
-          : controller.buffering
+          : controller.loading
+              ? AudioProcessingState.loading
+              : controller.buffering
               ? AudioProcessingState.buffering
               : AudioProcessingState.ready,
-      playing: controller.playing,
+      // While a stream opens, report the intent to play so Android Auto
+      // shows the episode as starting rather than failing to load.
+      playing: controller.playing || controller.loading,
       updatePosition: controller.position,
       speed: controller.rate,
       queueIndex: item == null ? null : 0,
@@ -176,8 +209,22 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
 
   @override
   Future<void> playFromMediaId(String mediaId, [Map<String, dynamic>? extras]) async {
-    final item = _known[mediaId.replaceFirst(_episodePrefix, '')];
-    if (item != null) await controller.play(item, kind: _audioFirst(item));
+    final id = mediaId.replaceFirst(_episodePrefix, '');
+    var item = _known[id];
+    if (item == null) {
+      // Not browsed in this process yet (e.g. "recent" card after a restart).
+      final candidates = [...await library.inProgress(), ...await library.newReleases()];
+      item = candidates.where((i) => i.episode.id == id).firstOrNull;
+    }
+    if (item == null) {
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.error,
+        errorMessage: 'Épisode introuvable',
+      ));
+      return;
+    }
+    _known[id] = item;
+    await controller.play(item, kind: _audioFirst(item));
   }
 
   MediaKind? _audioFirst(FeedItem item) => item.episode.hasAudio ? MediaKind.audio : null;

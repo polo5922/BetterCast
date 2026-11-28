@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auto_downloads.dart';
+import '../../core/onboarding.dart';
 import '../../core/config.dart';
 import '../../core/providers.dart';
 import '../../ui/widgets.dart';
@@ -110,6 +111,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             if (session.serverUrl != null) session.serverUrl!,
           ].join('\n')),
           isThreeLine: user?.displayName != null,
+        ),
+        ListTile(
+          leading: const Icon(Icons.waving_hand_outlined),
+          title: const Text('Revoir la présentation'),
+          onTap: () => ref.read(onboardingDoneProvider.notifier).replay(),
         ),
         const Divider(),
         _section(context, 'Abonnements'),

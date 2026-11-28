@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/connectivity.dart';
 import 'core/notifications.dart';
+import 'core/onboarding.dart';
 import 'core/providers.dart';
 import 'features/auth/login_page.dart';
 import 'features/discover/discover_page.dart';
@@ -18,6 +19,7 @@ import 'features/discover/episode_page.dart';
 import 'features/discover/podcast_page.dart';
 import 'features/feed/feed_page.dart';
 import 'features/library/library_page.dart';
+import 'features/onboarding/onboarding_page.dart';
 import 'features/patreon/patreon_page.dart';
 import 'features/settings/settings_page.dart';
 import 'player/mini_player.dart';
@@ -34,21 +36,31 @@ final routerProvider = Provider<GoRouter>((ref) {
   final signedIn = ValueNotifier(ref.read(sessionProvider).signedIn);
   ref.listen(sessionProvider, (_, s) => signedIn.value = s.signedIn);
   ref.onDispose(signedIn.dispose);
+  final onboarded = ValueNotifier(ref.read(onboardingDoneProvider));
+  ref.listen(onboardingDoneProvider, (_, v) => onboarded.value = v);
+  ref.onDispose(onboarded.dispose);
 
   final router = GoRouter(
     navigatorKey: _rootKey,
     initialLocation: '/feed',
-    refreshListenable: signedIn,
+    refreshListenable: Listenable.merge([signedIn, onboarded]),
     redirect: (_, state) {
       // bettercast:// links are handled by app_links (see _BetterCastAppState).
       if (state.uri.scheme == 'bettercast') return '/feed';
       final atLogin = state.matchedLocation == '/login';
       if (!signedIn.value) return atLogin ? null : '/login';
-      if (atLogin) return '/feed';
+      final atOnboarding = state.matchedLocation == '/onboarding';
+      if (!onboarded.value) {
+        // Patreon's OAuth return may open /patreon on top of the flow.
+        if (atOnboarding || state.matchedLocation == '/patreon') return null;
+        return '/onboarding';
+      }
+      if (atLogin || atOnboarding) return '/feed';
       return null;
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingPage()),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => _Shell(shell),
         branches: [

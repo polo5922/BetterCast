@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import 'api_client.dart';
+import 'onboarding.dart';
 import 'providers.dart';
 
 /// Firebase config passed at build time, so no google-services.json is
@@ -116,10 +117,16 @@ class NotificationsService {
 
   // ---- Android: FCM ----
 
+  /// Android 13+ notification permission (asked during onboarding).
+  Future<bool> requestPermission() async =>
+      await _local
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission() ??
+      true;
+
   Future<void> _startFcm() async {
-    await _local
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    // New users get the question in the onboarding, with some context.
+    if (ref.read(onboardingDoneProvider)) await requestPermission();
     if (!FirebaseConfig.configured) {
       debugPrint('Firebase not configured: push notifications disabled');
       return;

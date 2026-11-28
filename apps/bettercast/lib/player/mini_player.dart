@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../ui/motion.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'player_providers.dart';
@@ -14,11 +15,36 @@ class MiniPlayer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final item = ref.watch(playerProvider.select((p) => p.current));
-    if (item == null) return const SizedBox.shrink();
-    final cover = item.episode.imageUrl ?? item.podcast.imageUrl;
-    return ArtworkTheme(artworkUrl: cover, child: const _MiniPlayerCard());
+    final cover = item == null ? null : item.episode.imageUrl ?? item.podcast.imageUrl;
+    final fast = reduceMotion(context);
+    // Slides in/out, and cross-fades when the episode changes.
+    return AnimatedSize(
+      duration: fast ? Duration.zero : const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.bottomCenter,
+      child: AnimatedSwitcher(
+        duration: fast ? Duration.zero : const Duration(milliseconds: 280),
+        transitionBuilder: (c, a) => FadeTransition(
+          opacity: a,
+          child: SlideTransition(
+            position: Tween(begin: const Offset(0, 0.2), end: Offset.zero).animate(a),
+            child: c,
+          ),
+        ),
+        child: item == null
+            ? const SizedBox(key: ValueKey('none'), width: double.infinity)
+            : ArtworkTheme(
+                key: ValueKey(item.episode.id),
+                artworkUrl: cover,
+                child: const _MiniPlayerCard(),
+              ),
+      ),
+    );
   }
 }
+
+/// Shared by the mini player cover and the full player cover.
+const nowPlayingHeroTag = 'now-playing-cover';
 
 class _MiniPlayerCard extends ConsumerWidget {
   const _MiniPlayerCard();
@@ -45,7 +71,10 @@ class _MiniPlayerCard extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 6, 6),
               child: Row(children: [
-                Artwork(item.episode.imageUrl ?? item.podcast.imageUrl, size: 46, radius: 14),
+                Hero(
+                  tag: nowPlayingHeroTag,
+                  child: Artwork(item.episode.imageUrl ?? item.podcast.imageUrl, size: 46, radius: 14),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -80,7 +109,7 @@ class _MiniPlayerCard extends ConsumerWidget {
                         )
                       : IconButton.filled(
                           tooltip: p.playing ? 'Pause' : 'Lecture',
-                          icon: Icon(p.playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                          icon: PlayPauseIcon(playing: p.playing),
                           onPressed: p.playPause,
                         ),
                 ),

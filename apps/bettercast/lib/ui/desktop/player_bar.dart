@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../player/player_controller.dart';
 import '../../player/player_page.dart';
 import '../../player/player_providers.dart';
+import '../motion.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'adaptive.dart';
@@ -104,7 +105,7 @@ class _Bar extends ConsumerWidget {
                         )
                       : IconButton.filled(
                           tooltip: p.playing ? 'Pause (Espace)' : 'Lecture (Espace)',
-                          icon: Icon(p.playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                          icon: PlayPauseIcon(playing: p.playing),
                           onPressed: p.playPause,
                         ),
                 ),

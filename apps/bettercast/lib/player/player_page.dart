@@ -6,7 +6,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../core/providers.dart';
 import '../ui/desktop/adaptive.dart';
+import '../ui/motion.dart';
 import '../ui/theme.dart';
+import 'mini_player.dart';
 import '../ui/widgets.dart';
 import 'player_controller.dart';
 import 'player_providers.dart';
@@ -66,13 +68,19 @@ class PlayerPage extends ConsumerWidget {
                 scale: p.playing ? 1 : 0.86,
                 duration: const Duration(milliseconds: 450),
                 curve: Curves.easeOutBack,
-                child: Artwork(cover,
-                    size: c.biggest.shortestSide.clamp(120.0, 380.0), radius: 28, shadow: true),
+                child: HeroMode(
+                  enabled: !embedded,
+                  child: Hero(
+                    tag: nowPlayingHeroTag,
+                    child: Artwork(cover,
+                        size: c.biggest.shortestSide.clamp(120.0, 380.0), radius: 28, shadow: true),
+                  ),
+                ),
               ),
             ),
           );
 
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: s.surface,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -237,6 +245,8 @@ class PlayerPage extends ConsumerWidget {
         ),
       ),
     );
+    if (embedded) return page;
+    return DragToDismiss(onDismiss: () => context.pop(), child: page);
   }
 
   Future<void> _sleepMenu(BuildContext context, PlayerController p) async {
@@ -387,12 +397,7 @@ class _BigPlayButton extends StatelessWidget {
                 ? SizedBox(
                     width: 32, height: 32,
                     child: CircularProgressIndicator(color: s.onPrimary, strokeWidth: 3))
-                : AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-                    child: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        key: ValueKey(playing), size: 48, color: s.onPrimary),
-                  ),
+                : PlayPauseIcon(playing: playing, size: 48, color: s.onPrimary),
           ),
         ),
       ),

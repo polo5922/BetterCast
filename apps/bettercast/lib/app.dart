@@ -28,6 +28,7 @@ import 'player/player_page.dart';
 import 'player/player_providers.dart';
 import 'ui/desktop/adaptive.dart';
 import 'ui/desktop/desktop_shell.dart';
+import 'ui/motion.dart';
 import 'ui/theme.dart';
 import 'ui/widgets.dart';
 
@@ -109,7 +110,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/player',
         parentNavigatorKey: _rootKey,
-        pageBuilder: (_, _) => const MaterialPage(fullscreenDialog: true, child: PlayerPage()),
+        pageBuilder: (_, s) => playerPage(s, const PlayerPage()),
       ),
     ],
   );
@@ -233,7 +234,11 @@ class _Shell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (isWideLayout(context)) {
-      return DesktopFrame(selectedIndex: shell.currentIndex, onNavigate: _go, child: shell);
+      return DesktopFrame(
+        selectedIndex: shell.currentIndex,
+        onNavigate: _go,
+        child: TabFade(index: shell.currentIndex, child: shell),
+      );
     }
     return Scaffold(
       body: Column(children: [
@@ -241,7 +246,7 @@ class _Shell extends ConsumerWidget {
         Expanded(child: MediaQuery.removePadding(
           context: context,
           removeTop: ref.watch(onlineProvider) == false,
-          child: shell,
+          child: TabFade(index: shell.currentIndex, child: shell),
         )),
       ]),
       bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -309,4 +314,4 @@ class _ContentEnter extends StatelessWidget {
 Page<void> _pushedPage(BuildContext context, GoRouterState state, Widget child) =>
     isWideLayout(context)
         ? NoTransitionPage(key: state.pageKey, child: child)
-        : MaterialPage(key: state.pageKey, child: child);
+        : sharedAxisPage(state, child);

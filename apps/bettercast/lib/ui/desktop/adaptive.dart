@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../motion.dart';
 import '../widgets.dart';
 
 /// Window width from which the desktop layout (sidebar + player bar) is used.
@@ -62,9 +63,10 @@ Widget adaptiveColumns({
   required IndexedWidgetBuilder itemBuilder,
   double minTileWidth = 460,
 }) =>
-    SliverLayoutBuilder(builder: (context, c) {
+    StaggerScope(child: SliverLayoutBuilder(builder: (context, c) {
       final cols = (c.crossAxisExtent / minTileWidth).floor().clamp(1, 3);
-      if (cols == 1) return SliverList.builder(itemCount: itemCount, itemBuilder: itemBuilder);
+      Widget item(BuildContext context, int i) => Stagger(index: i, child: itemBuilder(context, i));
+      if (cols == 1) return SliverList.builder(itemCount: itemCount, itemBuilder: item);
       final rows = (itemCount / cols).ceil();
       return SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -74,13 +76,13 @@ Widget adaptiveColumns({
             for (var k = 0; k < cols; k++)
               Expanded(
                 child: r * cols + k < itemCount
-                    ? itemBuilder(context, r * cols + k)
+                    ? item(context, r * cols + k)
                     : const SizedBox.shrink(),
               ),
           ]),
         ),
       );
-    });
+    }));
 
 /// Episodes as a list on phones, in columns on wide windows.
 Widget adaptiveEpisodes(List<FeedItem> items, {bool showPodcast = true}) => adaptiveColumns(

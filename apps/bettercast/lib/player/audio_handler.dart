@@ -80,7 +80,10 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
     final item = controller.current;
     if (item != null) {
       final m = _toMediaItem(item, duration: controller.duration);
-      if (mediaItem.value != m) mediaItem.add(m);
+      // MediaItem equality only looks at the id: also republish when the
+      // real duration arrives, or the car shows no progress bar.
+      final prev = mediaItem.value;
+      if (prev != m || prev?.duration != m.duration) mediaItem.add(m);
     }
     queue.add([for (final q in controller.queue) _toMediaItem(q)]);
     playbackState.add(PlaybackState(
@@ -137,8 +140,29 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
 
   // ---- transport controls ----
 
+  /// Car / Bluetooth play button with nothing loaded: resume the most
+  /// recent episode, like other podcast apps do.
   @override
-  Future<void> play() => controller.resume();
+  Future<void> play() async {
+    if (controller.current == null) return _playLast(autoplay: true);
+    await controller.resume();
+  }
+
+  /// Android Auto asks this when it connects: load the last episode,
+  /// paused, so the car shows it right away.
+  @override
+  Future<void> prepare() async {
+    if (controller.current == null) await _playLast(autoplay: false);
+  }
+
+  Future<void> _playLast({required bool autoplay}) async {
+    var items = await library.inProgress();
+    if (items.isEmpty) items = await library.newReleases();
+    if (items.isEmpty) return;
+    final item = items.first;
+    _toMediaItem(item);
+    await controller.play(item, kind: _audioFirst(item), autoplay: autoplay);
+  }
   @override
   Future<void> pause() => controller.pause();
   @override

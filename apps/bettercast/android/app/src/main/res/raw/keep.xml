@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- audio_service looks these icons up by name (Android 13+ custom
+     actions for rewind / fast-forward). Without this, release resource
+     shrinking drops them and every media session update crashes. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/audio_service_*" />

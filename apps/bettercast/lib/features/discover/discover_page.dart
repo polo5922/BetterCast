@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../../ui/desktop/adaptive.dart';
 import '../../ui/widgets.dart';
 import 'themes.dart';
 
@@ -53,6 +54,7 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: SearchBar(
               controller: _query,
+              focusNode: ref.watch(searchFocusProvider),
               hintText: 'Rechercher un podcast ou coller l’URL d’un flux RSS',
               leading: const Icon(Icons.search),
               trailing: [
@@ -91,9 +93,13 @@ class _DiscoverPageState extends ConsumerState<DiscoverPage> {
                   onRetry: () => ref.invalidate(searchResultsProvider),
                   builder: (list) => list.isEmpty
                       ? const EmptyState(icon: Icons.search_off, text: 'Aucun résultat')
-                      : ListView(children: [
-                          const SectionHeader('Résultats'),
-                          for (final r in list) SearchResultTile(r),
+                      : CustomScrollView(slivers: [
+                          const SliverToBoxAdapter(child: SectionHeader('Résultats')),
+                          adaptiveColumns(
+                            itemCount: list.length,
+                            minTileWidth: 380,
+                            itemBuilder: (_, i) => SearchResultTile(list[i]),
+                          ),
                         ]),
                 ),
     );
@@ -187,8 +193,12 @@ class ThemePage extends ConsumerWidget {
             ? const EmptyState(icon: Icons.trending_up, text: 'Rien pour ce thème')
             : RefreshIndicator(
                 onRefresh: () => ref.refresh(trendingProvider(genre).future),
-                child: ListView(children: [
-                  for (var i = 0; i < list.length; i++) SearchResultTile(list[i], rank: i + 1),
+                child: CustomScrollView(slivers: [
+                  adaptiveColumns(
+                    itemCount: list.length,
+                    minTileWidth: 380,
+                    itemBuilder: (_, i) => SearchResultTile(list[i], rank: i + 1),
+                  ),
                 ]),
               ),
       ),

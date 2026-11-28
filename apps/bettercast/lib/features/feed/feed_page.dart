@@ -7,6 +7,7 @@ import '../../core/connectivity.dart';
 import '../../core/downloads.dart';
 import '../../core/providers.dart';
 import '../../player/player_providers.dart';
+import '../../ui/desktop/adaptive.dart';
 import '../../ui/widgets.dart';
 
 class FeedPage extends ConsumerWidget {
@@ -68,10 +69,7 @@ class FeedPage extends ConsumerWidget {
               ),
               if (offlineItems.isNotEmpty) ...[
                 const SliverToBoxAdapter(child: SectionHeader('Disponible hors ligne')),
-                SliverList.builder(
-                  itemCount: offlineItems.length,
-                  itemBuilder: (_, i) => EpisodeTile(offlineItems[i]),
-                ),
+                adaptiveEpisodes(offlineItems),
               ],
               if (resume.isNotEmpty) ...[
                 const SliverToBoxAdapter(child: SectionHeader('Reprendre l’écoute')),
@@ -105,10 +103,7 @@ class FeedPage extends ConsumerWidget {
                 )
               else ...[
                 const SliverToBoxAdapter(child: SectionHeader('Derniers épisodes')),
-                SliverList.builder(
-                  itemCount: items.length,
-                  itemBuilder: (_, i) => EpisodeTile(items[i]),
-                ),
+                adaptiveEpisodes(items),
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ]),

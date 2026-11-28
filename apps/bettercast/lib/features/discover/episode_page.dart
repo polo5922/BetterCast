@@ -9,6 +9,7 @@ import '../../core/downloads.dart';
 import '../../core/local_db.dart';
 import '../../core/providers.dart';
 import '../../player/player_providers.dart';
+import '../../ui/desktop/adaptive.dart';
 import '../../ui/widgets.dart';
 
 class EpisodePage extends ConsumerWidget {
@@ -42,82 +43,141 @@ class EpisodePage extends ConsumerWidget {
             ),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Artwork(e.imageUrl ?? p.imageUrl, size: 96, radius: 12),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(e.title, style: theme.textTheme.titleLarge),
-              const SizedBox(height: 6),
-              Text(
-                [
-                  formatDate(e.publishedAt),
-                  formatDuration(e.duration),
-                  if (e.season != null) 'Saison ${e.season}',
-                  if (e.number != null) 'Épisode ${e.number}',
-                ].where((s) => s.isNotEmpty).join(' · '),
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 6),
-              Wrap(spacing: 6, runSpacing: 4, children: [
-                ...episodeBadges(e),
-                if (e.explicit) const Badge2('Explicite'),
-                if (e.transcripts.isNotEmpty) const Badge2('Transcription', icon: Icons.subtitles),
-              ]),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 16),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          FilledButton.icon(
-            onPressed: () => player.play(item, kind: e.hasAudio ? MediaKind.audio : null),
-            icon: const Icon(Icons.play_arrow),
-            label: Text(state.inProgress ? 'Reprendre ${formatClock(state.position)}' : 'Écouter'),
-          ),
-          if (e.hasVideo)
-            FilledButton.tonalIcon(
-              onPressed: () {
-                player.play(item, kind: MediaKind.video);
-                context.push('/player');
-              },
-              icon: const Icon(Icons.videocam),
-              label: const Text('Regarder'),
+      body: LayoutBuilder(
+        builder: (context, c) {
+          final wide = c.maxWidth >= 760;
+          final info = <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!wide) ...[
+                  Artwork(e.imageUrl ?? p.imageUrl, size: 96, radius: 12),
+                  const SizedBox(width: 16),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(e.title, style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 6),
+                      Text(
+                        [
+                          formatDate(e.publishedAt),
+                          formatDuration(e.duration),
+                          if (e.season != null) 'Saison ${e.season}',
+                          if (e.number != null) 'Épisode ${e.number}',
+                        ].where((s) => s.isNotEmpty).join(' · '),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          ...episodeBadges(e),
+                          if (e.explicit) const Badge2('Explicite'),
+                          if (e.transcripts.isNotEmpty) const Badge2('Transcription', icon: Icons.subtitles),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          OutlinedButton.icon(
-            onPressed: () {
-              player.enqueue(item);
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(const SnackBar(content: Text('Ajouté à la file')));
-            },
-            icon: const Icon(Icons.queue_music),
-            label: const Text('File'),
-          ),
-          IconButton.outlined(
-            tooltip: state.liked ? 'Retirer des likés' : 'Liker',
-            onPressed: () => states.toggleLike(e),
-            icon: Icon(state.liked ? Icons.favorite : Icons.favorite_border,
-                color: state.liked ? Colors.redAccent : null),
-          ),
-          IconButton.outlined(
-            tooltip: state.played ? 'Marquer non écouté' : 'Marquer écouté',
-            onPressed: () => states.setPlayed(e, !state.played),
-            icon: Icon(state.played ? Icons.check_circle : Icons.check_circle_outline),
-          ),
-          _DownloadButton(item: item, download: download),
-        ]),
-        const Divider(height: 32),
-        if (e.description.isNotEmpty)
-          SelectionArea(
-            child: HtmlWidget(
-              e.description,
-              textStyle: theme.textTheme.bodyMedium,
-              onTapUrl: (url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          ];
+          final actions = <Widget>[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => player.play(item, kind: e.hasAudio ? MediaKind.audio : null),
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text(state.inProgress ? 'Reprendre ${formatClock(state.position)}' : 'Écouter'),
+                ),
+                if (e.hasVideo)
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      player.play(item, kind: MediaKind.video);
+                      openPlayer(context, ref);
+                    },
+                    icon: const Icon(Icons.videocam),
+                    label: const Text('Regarder'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    player.enqueue(item);
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(const SnackBar(content: Text('Ajouté à la file')));
+                  },
+                  icon: const Icon(Icons.queue_music),
+                  label: const Text('File'),
+                ),
+                IconButton.outlined(
+                  tooltip: state.liked ? 'Retirer des likés' : 'Liker',
+                  onPressed: () => states.toggleLike(e),
+                  icon: Icon(
+                    state.liked ? Icons.favorite : Icons.favorite_border,
+                    color: state.liked ? Colors.redAccent : null,
+                  ),
+                ),
+                IconButton.outlined(
+                  tooltip: state.played ? 'Marquer non écouté' : 'Marquer écouté',
+                  onPressed: () => states.setPlayed(e, !state.played),
+                  icon: Icon(state.played ? Icons.check_circle : Icons.check_circle_outline),
+                ),
+                _DownloadButton(item: item, download: download),
+              ],
             ),
-          )
-        else
-          Text(e.summary ?? 'Pas de description.'),
-      ]),
+          ];
+          final description = <Widget>[
+            if (e.description.isNotEmpty)
+              SelectionArea(
+                child: HtmlWidget(
+                  e.description,
+                  textStyle: theme.textTheme.bodyMedium,
+                  onTapUrl: (url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+                ),
+              )
+            else
+              Text(e.summary ?? 'Pas de description.'),
+          ];
+          if (wide) {
+            // Wide windows: cover and actions on the left, notes on the right.
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 340,
+                  child: ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      Center(child: Artwork(e.imageUrl ?? p.imageUrl, size: 260, radius: 24, shadow: true)),
+                      const SizedBox(height: 20),
+                      ...info,
+                      const SizedBox(height: 16),
+                      ...actions,
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(padding: const EdgeInsets.fromLTRB(16, 24, 32, 32), children: description),
+                ),
+              ],
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              ...info,
+              const SizedBox(height: 16),
+              ...actions,
+              const Divider(height: 32),
+              ...description,
+            ],
+          );
+        },
+      ),
     );
   }
 }

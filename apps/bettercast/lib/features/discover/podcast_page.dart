@@ -70,6 +70,112 @@ class _PodcastPageState extends ConsumerState<PodcastPage> {
     final s = theme.colorScheme;
     final top = MediaQuery.paddingOf(context).top;
 
+    final controls = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _busy
+                ? const Center(child: CircularProgressIndicator())
+                : subscribed
+                    ? OutlinedButton.icon(
+                        key: const ValueKey('sub'),
+                        onPressed: () => _toggleSubscription(true),
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Abonné'),
+                      )
+                    : FilledButton.icon(
+                        key: const ValueKey('unsub'),
+                        onPressed: () => _toggleSubscription(false),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text("S'abonner"),
+                      ),
+          ),
+        ),
+        if (subscribed) ...[
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: sub.notify ? 'Couper les notifications' : 'Activer les notifications',
+            icon: Icon(sub.notify
+                ? Icons.notifications_active_rounded
+                : Icons.notifications_off_outlined),
+            onPressed: () async {
+              await ref.read(apiProvider).setNotify(p.id, !sub.notify);
+              ref.invalidate(subscriptionsProvider);
+            },
+          ),
+        ],
+      ]),
+      const SizedBox(height: 12),
+      _AutoDownloadCard(
+        count: autoCount,
+        enabled: subscribed,
+        onTap: () => showAutoDownloadSheet(context, p),
+      ),
+      if (p.description.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        _ExpandableText(plainText(p.description)),
+      ],
+    ]);
+    final episodesHeader = SectionHeader(
+      'Épisodes',
+      action: FilterChip(
+        label: const Text('Masquer écoutés'),
+        selected: _hidePlayed,
+        onSelected: (v) => setState(() => _hidePlayed = v),
+      ),
+    );
+    final episodeList = SliverList.builder(
+      itemCount: episodes.length,
+      itemBuilder: (_, i) =>
+          EpisodeTile(FeedItem(episode: episodes[i], podcast: p), showPodcast: false),
+    );
+    final hasVideo = d.episodes.any((e) => e.hasVideo);
+
+    return LayoutBuilder(builder: (context, c) {
+      // Wide windows: cover and details on the left, episodes on the right.
+      if (c.maxWidth >= 760) {
+        return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SizedBox(
+            width: (c.maxWidth * 0.36).clamp(300.0, 400.0),
+            child: Stack(children: [
+              Positioned.fill(
+                child: SingleChildScrollView(
+                  child: Column(children: [
+                    SizedBox(
+                      height: 400,
+                      child: _Hero(podcast: p, episodeCount: d.episodes.length, hasVideo: hasVideo),
+                    ),
+                    Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), child: controls),
+                  ]),
+                ),
+              ),
+              if (Navigator.of(context).canPop())
+                const Positioned(top: 8, left: 8, child: BackButton()),
+            ]),
+          ),
+          VerticalDivider(width: 1, color: s.outlineVariant),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => ref.refresh(podcastDetailProvider(widget.podcastId).future),
+              child: CustomScrollView(slivers: [
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                SliverToBoxAdapter(child: episodesHeader),
+                episodeList,
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ]),
+            ),
+          ),
+        ]);
+      }
+      return _narrow(context, d, controls, episodesHeader, episodeList, hasVideo, top);
+    });
+  }
+
+  Widget _narrow(BuildContext context, PodcastDetail d, Widget controls, Widget episodesHeader,
+      Widget episodeList, bool hasVideo, double top) {
+    final s = Theme.of(context).colorScheme;
+    final p = d.podcast;
     return RefreshIndicator(
       onRefresh: () => ref.refresh(podcastDetailProvider(widget.podcastId).future),
       child: CustomScrollView(slivers: [
@@ -81,77 +187,14 @@ class _PodcastPageState extends ConsumerState<PodcastPage> {
           title: const SizedBox.shrink(),
           flexibleSpace: FlexibleSpaceBar(
             stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
-            background: _Hero(podcast: p, episodeCount: d.episodes.length,
-                hasVideo: d.episodes.any((e) => e.hasVideo)),
+            background: _Hero(podcast: p, episodeCount: d.episodes.length, hasVideo: hasVideo),
           ),
         ),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _busy
-                        ? const Center(child: CircularProgressIndicator())
-                        : subscribed
-                            ? OutlinedButton.icon(
-                                key: const ValueKey('sub'),
-                                onPressed: () => _toggleSubscription(true),
-                                icon: const Icon(Icons.check_rounded),
-                                label: const Text('Abonné'),
-                              )
-                            : FilledButton.icon(
-                                key: const ValueKey('unsub'),
-                                onPressed: () => _toggleSubscription(false),
-                                icon: const Icon(Icons.add_rounded),
-                                label: const Text("S'abonner"),
-                              ),
-                  ),
-                ),
-                if (subscribed) ...[
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: sub.notify ? 'Couper les notifications' : 'Activer les notifications',
-                    icon: Icon(sub.notify
-                        ? Icons.notifications_active_rounded
-                        : Icons.notifications_off_outlined),
-                    onPressed: () async {
-                      await ref.read(apiProvider).setNotify(p.id, !sub.notify);
-                      ref.invalidate(subscriptionsProvider);
-                    },
-                  ),
-                ],
-              ]),
-              const SizedBox(height: 12),
-              _AutoDownloadCard(
-                count: autoCount,
-                enabled: subscribed,
-                onTap: () => showAutoDownloadSheet(context, p),
-              ),
-              if (p.description.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _ExpandableText(plainText(p.description)),
-              ],
-            ]),
-          ),
+          child: Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 0), child: controls),
         ),
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            'Épisodes',
-            action: FilterChip(
-              label: const Text('Masquer écoutés'),
-              selected: _hidePlayed,
-              onSelected: (v) => setState(() => _hidePlayed = v),
-            ),
-          ),
-        ),
-        SliverList.builder(
-          itemCount: episodes.length,
-          itemBuilder: (_, i) =>
-              EpisodeTile(FeedItem(episode: episodes[i], podcast: p), showPodcast: false),
-        ),
+        SliverToBoxAdapter(child: episodesHeader),
+        episodeList,
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ]),
     );

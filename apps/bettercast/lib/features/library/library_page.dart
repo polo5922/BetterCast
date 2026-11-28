@@ -7,6 +7,7 @@ import '../../core/downloads.dart';
 import '../../core/auto_downloads.dart';
 import '../../core/providers.dart';
 import '../../ui/auto_download_sheet.dart';
+import '../../ui/desktop/adaptive.dart';
 import '../../ui/widgets.dart';
 
 class LibraryPage extends ConsumerWidget {
@@ -93,10 +94,7 @@ class _EpisodeList extends ConsumerWidget {
             )
           : RefreshIndicator(
               onRefresh: () => ref.read(episodeStatesProvider.notifier).sync(),
-              child: ListView.builder(
-                itemCount: items.length,
-                                itemBuilder: (_, i) => EpisodeTile(items[i]),
-              ),
+              child: CustomScrollView(slivers: [adaptiveEpisodes(items)]),
             ),
     );
   }
@@ -112,10 +110,7 @@ class _Downloads extends ConsumerWidget {
       return const EmptyState(
           icon: Icons.download_outlined, text: 'Télécharge des épisodes pour les écouter hors-ligne.');
     }
-    return ListView.builder(
-      itemCount: downloads.length,
-            itemBuilder: (_, i) => EpisodeTile(downloads[i].item),
-    );
+    return CustomScrollView(slivers: [adaptiveEpisodes([for (final d in downloads) d.item])]);
   }
 }
 

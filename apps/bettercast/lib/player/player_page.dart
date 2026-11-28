@@ -5,22 +5,35 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../core/providers.dart';
+import '../ui/desktop/adaptive.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'player_controller.dart';
 import 'player_providers.dart';
 
 class PlayerPage extends ConsumerWidget {
-  const PlayerPage({super.key});
+  const PlayerPage({super.key, this.embedded = false});
 
-  static const _rates = [0.8, 1.0, 1.2, 1.5, 1.75, 2.0, 2.5];
+  /// Shown in the desktop side panel instead of as a full-screen page.
+  final bool embedded;
+
+  static const rates = [0.8, 1.0, 1.2, 1.5, 1.75, 2.0, 2.5];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final item = ref.watch(playerProvider.select((p) => p.current));
     if (item == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: AppBar(
+          automaticallyImplyLeading: !embedded,
+          actions: [
+            if (embedded)
+              IconButton(
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => ref.read(playerPanelProvider.notifier).hide(),
+              ),
+          ],
+        ),
         body: const EmptyState(icon: Icons.headphones_rounded, text: 'Rien en lecture'),
       );
     }
@@ -64,10 +77,16 @@ class PlayerPage extends ConsumerWidget {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32),
-          onPressed: () => context.pop(),
-        ),
+        leading: embedded
+            ? IconButton(
+                tooltip: 'Fermer le panneau',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => ref.read(playerPanelProvider.notifier).hide(),
+              )
+            : IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32),
+                onPressed: () => context.pop(),
+              ),
         centerTitle: true,
         title: Column(children: [
           Text('EN LECTURE',
@@ -93,7 +112,7 @@ class PlayerPage extends ConsumerWidget {
             ),
             onPressed: () => showModalBottomSheet<void>(
               context: context,
-              builder: (_) => const _QueueSheet(),
+              builder: (_) => const QueueList(),
             ),
           ),
         ],
@@ -182,7 +201,7 @@ class PlayerPage extends ConsumerWidget {
                         initialValue: p.rate,
                         onSelected: p.setRate,
                         itemBuilder: (_) => [
-                          for (final r in _rates) PopupMenuItem(value: r, child: Text('${r}x')),
+                          for (final r in rates) PopupMenuItem(value: r, child: Text('${r}x')),
                         ],
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -307,8 +326,9 @@ class _SeekBarState extends State<_SeekBar> {
   }
 }
 
-class _QueueSheet extends ConsumerWidget {
-  const _QueueSheet();
+/// Episodes waiting after the current one.
+class QueueList extends ConsumerWidget {
+  const QueueList({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

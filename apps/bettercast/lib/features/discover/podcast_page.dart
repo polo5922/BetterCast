@@ -175,7 +175,9 @@ class _Hero extends StatelessWidget {
       if (p.imageUrl != null && p.imageUrl!.isNotEmpty)
         ImageFiltered(
           imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-          child: Image.network(p.imageUrl!, fit: BoxFit.cover, cacheWidth: 200,
+          child: Image(
+              image: ResizeImage(artworkImage(p.imageUrl!), width: 200),
+              fit: BoxFit.cover,
               errorBuilder: (_, _, _) => const SizedBox()),
         ),
       DecoratedBox(

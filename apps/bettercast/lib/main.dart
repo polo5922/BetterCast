@@ -9,7 +9,9 @@ import 'package:media_kit/media_kit.dart';
 
 import 'app.dart';
 import 'core/api_client.dart';
+import 'core/artwork_cache.dart';
 import 'core/auto_downloads.dart';
+import 'core/connectivity.dart';
 import 'core/local_db.dart';
 import 'core/notifications.dart';
 import 'core/providers.dart';
@@ -22,6 +24,7 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
   await initializeDateFormatting('fr_FR');
 
+  await ArtworkCache.init();
   final store = TokenStore();
   await store.load();
   final db = LocalDb.open();
@@ -72,6 +75,13 @@ Future<void> main() async {
   container.listen<bool>(sessionProvider.select((s) => s.signedIn), (prev, next) {
     if (prev != next) onSession(next);
   }, fireImmediately: true);
+
+  // Back online: catch up on auto-downloads missed while offline.
+  container.listen<bool>(onlineProvider, (was, online) {
+    if (online && was == false && container.read(sessionProvider).signedIn) {
+      unawaited(container.read(autoDownloadsProvider.notifier).run());
+    }
+  });
 
   AppLifecycleListener(
     onResume: () {

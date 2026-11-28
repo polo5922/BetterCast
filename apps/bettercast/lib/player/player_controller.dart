@@ -12,6 +12,9 @@ abstract class PlaybackStore {
   void savePosition(Episode e, Duration position, Duration? duration);
   void markPlayed(Episode e);
   String? localPath(Episode e, MediaVariant v);
+
+  /// False when the server / Internet is unreachable.
+  bool get online;
 }
 
 /// Single source of truth for playback: current episode, queue, selected
@@ -38,6 +41,10 @@ class PlayerController extends ChangeNotifier {
     configuration: const PlayerConfiguration(title: 'BetterCast'),
   );
   final _subs = <StreamSubscription<Object?>>[];
+  final _messages = StreamController<String>.broadcast();
+
+  /// Short messages for the user (shown as snack bars).
+  Stream<String> get messages => _messages.stream;
   late final Timer _saveTimer;
 
   VideoController? _video;
@@ -83,11 +90,23 @@ class PlayerController extends ChangeNotifier {
       if (!playing) await resume();
       return;
     }
+    final e = item.episode;
+    var v = _pick(e, kind ?? _preferredKind(e));
+    if (v == null) return;
+    // A downloaded copy wins when no kind was asked for, and is the only
+    // option offline.
+    final local = [e.audio, e.video]
+        .whereType<MediaVariant>()
+        .where((x) => _store.localPath(e, x) != null)
+        .firstOrNull;
+    if (local != null && (kind == null || !_store.online)) {
+      v = local;
+    } else if (local == null && !_store.online) {
+      _messages.add('Pas de réseau : seuls les épisodes téléchargés peuvent être lus.');
+      return;
+    }
     if (autoplay && !await _requestFocus()) return;
     _persist();
-    final e = item.episode;
-    final v = _pick(e, kind ?? _preferredKind(e));
-    if (v == null) return;
     _current = item;
     _variant = v;
     _duration = e.duration;
@@ -131,6 +150,10 @@ class PlayerController extends ChangeNotifier {
     if (item == null || _variant?.kind == kind) return;
     final next = kind == MediaKind.video ? item.episode.video : item.episode.audio;
     if (next == null) return;
+    if (!_store.online && _store.localPath(item.episode, next) == null) {
+      _messages.add('Pas de réseau : cette version n’est pas téléchargée.');
+      return;
+    }
     final pos = player.state.position;
     final wasPlaying = player.state.playing;
     _variant = next;
@@ -262,6 +285,7 @@ class PlayerController extends ChangeNotifier {
       s.cancel();
     }
     player.dispose();
+    _messages.close();
     super.dispose();
   }
 }

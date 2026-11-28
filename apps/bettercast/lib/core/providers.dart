@@ -5,6 +5,7 @@ import 'package:bettercast_core/bettercast_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_client.dart';
+import 'connectivity.dart';
 import 'local_db.dart';
 
 /// Overridden in main() once the async singletons are ready.
@@ -89,6 +90,10 @@ class EpisodeStatesNotifier extends Notifier<Map<String, EpisodeState>> {
   @override
   Map<String, EpisodeState> build() {
     ref.onDispose(() => _pushTimer?.cancel());
+    // Back online: push what was listened to offline right away.
+    ref.listen<bool>(onlineProvider, (was, online) {
+      if (online && was == false) unawaited(sync());
+    });
     return ref.read(localDbProvider).allStates();
   }
 
@@ -179,8 +184,10 @@ class EpisodeStatesNotifier extends Notifier<Map<String, EpisodeState>> {
         state = next;
       }
       db.setKv('states_since', res.serverTime.toUtc().toIso8601String());
-    } on ApiException {
-      // Offline: retried on next change or app resume.
+      ref.read(onlineProvider.notifier).reportOnline();
+    } on ApiException catch (e) {
+      // Offline: pushed again as soon as the server is reachable.
+      if (e.isOffline) ref.read(onlineProvider.notifier).reportOffline();
     } finally {
       _syncing = false;
     }
@@ -213,16 +220,24 @@ Future<T> cached<T>(
   try {
     final v = await load();
     db.putCache(key, encode(v));
+    ref.read(onlineProvider.notifier).reportOnline();
     return v;
   } on ApiException catch (e) {
+    if (e.isOffline) ref.read(onlineProvider.notifier).reportOffline();
     final c = db.getCache(key);
     if (e.isOffline && c != null) return decode(c);
     rethrow;
   }
 }
 
+/// Refetches remote data when the server becomes reachable again.
+void _refreshWhenOnline(Ref ref) => ref.listen<bool>(onlineProvider, (was, online) {
+      if (online && was == false) ref.invalidateSelf();
+    });
+
 final subscriptionsProvider = FutureProvider<List<Subscription>>((ref) {
   ref.watch(sessionProvider.select((s) => s.user?.id));
+  _refreshWhenOnline(ref);
   return cached(
     ref,
     'subscriptions',
@@ -239,10 +254,15 @@ final subscribedIdsProvider = Provider<Set<String>>((ref) => {
 
 final newReleasesProvider = FutureProvider<List<FeedItem>>((ref) {
   ref.watch(sessionProvider.select((s) => s.user?.id));
+  _refreshWhenOnline(ref);
   return cached(
     ref,
     'feed_new',
-    () => ref.read(apiProvider).newReleases(limit: 100),
+    () async {
+      final v = await ref.read(apiProvider).newReleases(limit: 100);
+      ref.read(localDbProvider).putEpisodes(v);
+      return v;
+    },
     (v) => [for (final i in v) i.toJson()],
     (c) => [for (final i in c as List) FeedItem.fromJson((i as Map).cast())],
   );
@@ -252,7 +272,12 @@ final podcastDetailProvider = FutureProvider.family<PodcastDetail, String>((ref,
   return cached(
     ref,
     'podcast_$id',
-    () => ref.read(apiProvider).podcast(id),
+    () async {
+      final d = await ref.read(apiProvider).podcast(id);
+      ref.read(localDbProvider)
+          .putEpisodes([for (final e in d.episodes) FeedItem(episode: e, podcast: d.podcast)]);
+      return d;
+    },
     (v) => v.toJson(),
     (c) => PodcastDetail.fromJson((c as Map).cast()),
   );
@@ -262,13 +287,23 @@ final podcastDetailProvider = FutureProvider.family<PodcastDetail, String>((ref,
 final _episodesByIdsProvider =
     FutureProvider.family<List<FeedItem>, String>((ref, joinedIds) async {
   final ids = joinedIds.isEmpty ? <String>[] : joinedIds.split(',');
-  return cached(
-    ref,
-    'episodes_$joinedIds'.hashCode.toString(),
-    () => ref.read(apiProvider).episodesByIds(ids),
-    (v) => [for (final i in v) i.toJson()],
-    (c) => [for (final i in c as List) FeedItem.fromJson((i as Map).cast())],
-  );
+  _refreshWhenOnline(ref);
+  final db = ref.read(localDbProvider);
+  try {
+    final v = await ref.read(apiProvider).episodesByIds(ids);
+    db.putEpisodes(v);
+    ref.read(onlineProvider.notifier).reportOnline();
+    return v;
+  } on ApiException catch (e) {
+    if (!e.isOffline) rethrow;
+    ref.read(onlineProvider.notifier).reportOffline();
+    // Offline: rebuild the list from episodes seen before and downloads.
+    final known = {for (final i in db.episodesByIds(ids)) i.episode.id: i};
+    for (final d in db.downloads()) {
+      known.putIfAbsent(d.item.episode.id, () => d.item);
+    }
+    return [for (final id in ids) ?known[id]];
+  }
 });
 
 final likedEpisodesProvider = FutureProvider<List<FeedItem>>((ref) async {

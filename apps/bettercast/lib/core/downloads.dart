@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
 import 'package:bettercast_core/bettercast_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'artwork_cache.dart';
 import 'local_db.dart';
 import 'providers.dart';
 
@@ -55,6 +57,9 @@ class DownloadsNotifier extends Notifier<Map<String, DownloadRecord>> {
       displayName: item.episode.title,
     );
     _tasks[item.episode.id] = task.taskId;
+    // Covers too, so the episode looks the same offline.
+    unawaited(ArtworkCache.save(item.episode.imageUrl));
+    unawaited(ArtworkCache.save(item.podcast.imageUrl));
     var rec = DownloadRecord(item: item, variantUrl: v.url, status: 'running');
     _set(rec);
     final result = await FileDownloader().download(
@@ -88,6 +93,17 @@ class DownloadsNotifier extends Notifier<Map<String, DownloadRecord>> {
     }
     _db.deleteDownload(episodeId);
     state = {...state}..remove(episodeId);
+    if (d != null) await _dropArtwork(d.item);
+  }
+
+  /// Deletes covers no other download still uses.
+  Future<void> _dropArtwork(FeedItem item) async {
+    final used = {
+      for (final o in state.values) ...[o.item.episode.imageUrl, o.item.podcast.imageUrl],
+    };
+    for (final url in {item.episode.imageUrl, item.podcast.imageUrl}) {
+      if (url != null && !used.contains(url)) await ArtworkCache.remove(url);
+    }
   }
 
   static String _extension(MediaVariant v) {

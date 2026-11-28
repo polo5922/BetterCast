@@ -2,6 +2,7 @@ import 'package:bettercast_core/bettercast_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../core/connectivity.dart';
 import '../core/downloads.dart';
 import '../core/providers.dart';
 import 'audio_handler.dart';
@@ -30,6 +31,9 @@ class _Store implements PlaybackStore {
   @override
   String? localPath(Episode e, MediaVariant v) =>
       ref.read(downloadsProvider.notifier).localPath(e.id, v.url);
+
+  @override
+  bool get online => ref.read(onlineProvider);
 }
 
 final playerProvider = ChangeNotifierProvider<PlayerController>((ref) {

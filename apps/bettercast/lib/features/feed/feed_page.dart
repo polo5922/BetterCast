@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/connectivity.dart';
+import '../../core/downloads.dart';
 import '../../core/providers.dart';
 import '../../player/player_providers.dart';
 import '../../ui/widgets.dart';
@@ -23,6 +25,13 @@ class FeedPage extends ConsumerWidget {
     final feed = ref.watch(newReleasesProvider);
     final resume = ref.watch(inProgressEpisodesProvider).value ?? const <FeedItem>[];
     final name = ref.watch(sessionProvider.select((s) => s.user?.displayName));
+    final online = ref.watch(onlineProvider);
+    final offlineItems = online
+        ? const <FeedItem>[]
+        : [
+            for (final d in ref.watch(downloadsProvider).values)
+              if (d.isComplete) d.item,
+          ];
     final theme = Theme.of(context);
     Future<void> refresh() async {
       await ref.read(episodeStatesProvider.notifier).sync();
@@ -57,6 +66,13 @@ class FeedPage extends ConsumerWidget {
                   ]),
                 ),
               ),
+              if (offlineItems.isNotEmpty) ...[
+                const SliverToBoxAdapter(child: SectionHeader('Disponible hors ligne')),
+                SliverList.builder(
+                  itemCount: offlineItems.length,
+                  itemBuilder: (_, i) => EpisodeTile(offlineItems[i]),
+                ),
+              ],
               if (resume.isNotEmpty) ...[
                 const SliverToBoxAdapter(child: SectionHeader('Reprendre l’écoute')),
                 SliverToBoxAdapter(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/connectivity.dart';
 import 'core/notifications.dart';
 import 'core/providers.dart';
 import 'features/auth/login_page.dart';
@@ -18,10 +19,12 @@ import 'features/patreon/patreon_page.dart';
 import 'features/settings/settings_page.dart';
 import 'player/mini_player.dart';
 import 'player/player_page.dart';
+import 'player/player_providers.dart';
 import 'ui/theme.dart';
 import 'ui/widgets.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
+final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Bridges the session into GoRouter's refreshListenable.
@@ -109,6 +112,12 @@ class _BetterCastAppState extends ConsumerState<BetterCastApp> {
   void initState() {
     super.initState();
     final router = ref.read(routerProvider);
+    // Player messages (e.g. offline) as snack bars.
+    _subs.add(ref.read(playerProvider).messages.listen((m) {
+      _messengerKey.currentState
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(m)));
+    }));
     // Notification tap -> podcast page.
     _subs.add(ref.read(notificationsProvider).taps.listen((podcastId) {
       router.push('/podcast/$podcastId');
@@ -142,6 +151,7 @@ class _BetterCastAppState extends ConsumerState<BetterCastApp> {
     return MaterialApp.router(
       title: 'BetterCast',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _messengerKey,
       theme: ref.watch(brandThemeProvider(Brightness.light)),
       darkTheme: ref.watch(brandThemeProvider(Brightness.dark)),
       routerConfig: ref.watch(routerProvider),
@@ -150,7 +160,7 @@ class _BetterCastAppState extends ConsumerState<BetterCastApp> {
 }
 
 /// Adaptive shell: bottom navigation on phones, side rail on wide windows.
-class _Shell extends StatelessWidget {
+class _Shell extends ConsumerWidget {
   const _Shell(this.shell);
   final StatefulNavigationShell shell;
 
@@ -164,7 +174,7 @@ class _Shell extends StatelessWidget {
   void _go(int i) => shell.goBranch(i, initialLocation: i == shell.currentIndex);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final wide = MediaQuery.sizeOf(context).width >= 840;
     if (wide) {
       return Scaffold(
@@ -184,12 +194,24 @@ class _Shell extends StatelessWidget {
             ],
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: Column(children: [Expanded(child: shell), const MiniPlayer()])),
+          Expanded(
+              child: Column(children: [
+            const OfflineBanner(),
+            Expanded(child: shell),
+            const MiniPlayer(),
+          ])),
         ]),
       );
     }
     return Scaffold(
-      body: shell,
+      body: Column(children: [
+        const SafeArea(bottom: false, child: OfflineBanner()),
+        Expanded(child: MediaQuery.removePadding(
+          context: context,
+          removeTop: ref.watch(onlineProvider) == false,
+          child: shell,
+        )),
+      ]),
       bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
         const MiniPlayer(),
         NavigationBar(

@@ -42,6 +42,12 @@ class LocalDb {
         PRAGMA user_version = 1;
       ''');
     }
+    if (version < 2) {
+      _db.execute('''
+        CREATE TABLE IF NOT EXISTS episodes (id TEXT PRIMARY KEY, json TEXT NOT NULL);
+        PRAGMA user_version = 2;
+      ''');
+    }
   }
 
   void close() => _db.close();
@@ -56,6 +62,41 @@ class LocalDb {
   dynamic getCache(String key) {
     final r = _db.select('SELECT json FROM cache WHERE key = ?', [key]);
     return r.isEmpty ? null : jsonDecode(r.first['json'] as String);
+  }
+
+  // ---- episodes seen online, for offline lists ----
+
+  void putEpisodes(Iterable<FeedItem> items) {
+    final stmt = _db.prepare('INSERT OR REPLACE INTO episodes(id, json) VALUES (?, ?)');
+    _db.execute('BEGIN');
+    try {
+      for (final i in items) {
+        stmt.execute([i.episode.id, jsonEncode(i.toJson())]);
+      }
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      stmt.close();
+    }
+  }
+
+  /// Known episodes among [ids], in the order of [ids].
+  List<FeedItem> episodesByIds(List<String> ids) {
+    if (ids.isEmpty) return const [];
+    final found = <String, FeedItem>{};
+    for (var i = 0; i < ids.length; i += 500) {
+      final chunk = ids.skip(i).take(500).toList();
+      final rows = _db.select(
+          'SELECT id, json FROM episodes WHERE id IN (${List.filled(chunk.length, '?').join(',')})',
+          chunk);
+      for (final r in rows) {
+        found[r['id'] as String] =
+            FeedItem.fromJson((jsonDecode(r['json'] as String) as Map).cast());
+      }
+    }
+    return [for (final id in ids) ?found[id]];
   }
 
   // ---- kv ----

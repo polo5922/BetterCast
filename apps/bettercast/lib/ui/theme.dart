@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/artwork_cache.dart';
 
 /// BetterCast brand: warm ember + gold on an inky plum night, or warm paper by day.
 abstract final class Brand {
@@ -256,6 +257,12 @@ ThemeData buildTheme(ColorScheme s) {
   );
 }
 
+/// The saved copy of a cover when there is one, else the network image.
+ImageProvider artworkImage(String url) {
+  final f = ArtworkCache.fileFor(url);
+  return f != null ? FileImage(f) : NetworkImage(url);
+}
+
 final brandThemeProvider = Provider.family<ThemeData, Brightness>(
     (ref, b) => buildTheme(b == Brightness.dark ? Brand.dark : Brand.light));
 
@@ -265,7 +272,7 @@ final artworkSchemeProvider =
   final (url, brightness) = key;
   try {
     return await ColorScheme.fromImageProvider(
-      provider: ResizeImage(NetworkImage(url), width: 96, height: 96),
+      provider: ResizeImage(artworkImage(url), width: 96, height: 96),
       brightness: brightness,
       dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
     );

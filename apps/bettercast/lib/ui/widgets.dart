@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../core/api_client.dart';
+import '../core/connectivity.dart';
 import '../core/downloads.dart';
 import '../core/providers.dart';
 import '../player/player_providers.dart';
@@ -74,12 +75,12 @@ class Artwork extends StatelessWidget {
       borderRadius: BorderRadius.circular(r),
       child: url == null || url!.isEmpty
           ? placeholder
-          : Image.network(
-              url!,
+          : Image(
+              image: ResizeImage(artworkImage(url!),
+                  width: (size * MediaQuery.devicePixelRatioOf(context)).round()),
               width: size,
               height: size,
               fit: BoxFit.cover,
-              cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
               errorBuilder: (_, _, _) => placeholder,
               frameBuilder: (_, child, frame, sync) => sync
                   ? child
@@ -271,7 +272,9 @@ class EpisodeTile extends ConsumerWidget {
       else
         formatDuration(total),
     ].where((t) => t.isNotEmpty).join(' · ');
-    final muted = state.played && !isCurrent;
+    // Offline, only downloaded episodes can play.
+    final unavailable = !ref.watch(onlineProvider) && !(download?.isComplete ?? false);
+    final muted = (state.played && !isCurrent) || unavailable;
 
     return InkWell(
       onTap: () => context.push('/episode', extra: item),
@@ -410,4 +413,45 @@ class EmptyState extends StatelessWidget {
 
 void showError(BuildContext context, Object e) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+}
+
+/// Thin strip shown while the server can't be reached.
+class OfflineBanner extends ConsumerWidget {
+  const OfflineBanner({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(onlineProvider);
+    final s = Theme.of(context).colorScheme;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      child: online
+          ? const SizedBox(width: double.infinity)
+          : Material(
+              color: s.secondaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(children: [
+                  Icon(Icons.cloud_off_rounded, size: 16, color: s.onSecondaryContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Hors ligne · épisodes téléchargés uniquement',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium
+                            ?.copyWith(color: s.onSecondaryContainer)),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: s.onSecondaryContainer),
+                    onPressed: () => ref.read(onlineProvider.notifier).probe(),
+                    child: const Text('Réessayer'),
+                  ),
+                ]),
+              ),
+            ),
+    );
+  }
 }

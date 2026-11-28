@@ -91,7 +91,7 @@ class _Bar extends ConsumerWidget {
                 IconButton(
                   tooltip: 'Reculer de 15 s (←)',
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.replay_rounded),
+                  icon: const Replay15Icon(),
                   onPressed: () => p.skip(const Duration(seconds: -15)),
                 ),
                 const SizedBox(width: 8),

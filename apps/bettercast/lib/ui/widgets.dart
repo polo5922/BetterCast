@@ -455,3 +455,32 @@ class OfflineBanner extends ConsumerWidget {
     );
   }
 }
+
+/// "Back 15 s" icon (Material only ships replay 5/10/30).
+class Replay15Icon extends StatelessWidget {
+  const Replay15Icon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = IconTheme.of(context);
+    final size = icon.size ?? 24;
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(alignment: Alignment.center, children: [
+        Icon(Icons.replay_rounded, size: size),
+        Padding(
+          padding: EdgeInsets.only(top: size * 0.12),
+          child: Text(
+            '15',
+            style: TextStyle(
+              fontSize: size * 0.3,
+              fontWeight: FontWeight.w800,
+              height: 1,
+              color: icon.color,
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}

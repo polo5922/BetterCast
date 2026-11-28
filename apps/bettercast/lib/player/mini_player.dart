@@ -96,7 +96,7 @@ class _MiniPlayerCard extends ConsumerWidget {
                   ),
                 IconButton(
                   tooltip: 'Reculer de 15 s',
-                  icon: const Icon(Icons.replay_10_rounded),
+                  icon: const Replay15Icon(),
                   onPressed: () => p.skip(const Duration(seconds: -15)),
                 ),
                 SizedBox(

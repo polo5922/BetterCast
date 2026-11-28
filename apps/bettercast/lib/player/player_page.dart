@@ -185,7 +185,7 @@ class PlayerPage extends ConsumerWidget {
                     IconButton(
                       iconSize: 36,
                       tooltip: 'Reculer de 15 s',
-                      icon: const Icon(Icons.replay_10_rounded),
+                      icon: const Replay15Icon(),
                       onPressed: () => p.skip(const Duration(seconds: -15)),
                     ),
                     _BigPlayButton(playing: p.playing, buffering: p.buffering, onPressed: p.playPause),

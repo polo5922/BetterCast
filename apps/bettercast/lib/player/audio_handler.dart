@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:bettercast_core/bettercast_core.dart';
 
+import '../core/artwork_cache.dart';
 import 'player_controller.dart';
 
 /// Content shown in Android Auto's browse tree.
@@ -15,7 +16,39 @@ abstract class MediaLibrary {
   Future<List<Podcast>> subscriptions();
   Future<List<FeedItem>> podcastEpisodes(String podcastId);
   Future<List<SearchResult>> search(String query);
+
+  /// Listening progress, for the car's progress bars.
+  EpisodeState? state(String episodeId);
 }
+
+/// Android Auto browse hints (androidx.media.utils.MediaConstants).
+abstract final class _Car {
+  static const contentStyleSupported = 'android.media.browse.CONTENT_STYLE_SUPPORTED';
+  static const browsableHint = 'android.media.browse.CONTENT_STYLE_BROWSABLE_HINT';
+  static const playableHint = 'android.media.browse.CONTENT_STYLE_PLAYABLE_HINT';
+  static const singleItemHint = 'android.media.browse.CONTENT_STYLE_SINGLE_ITEM_HINT';
+  static const groupTitle = 'android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT';
+  static const searchSupported = 'android.media.browse.SEARCH_SUPPORTED';
+  static const completionStatus = 'android.media.extra.PLAYBACK_STATUS';
+  static const completionPercentage = 'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE';
+  static const list = 1;
+  static const grid = 2;
+  static const notPlayed = 0;
+  static const partiallyPlayed = 1;
+  static const fullyPlayed = 2;
+
+  /// Passed to the browse root: subscriptions show as big tiles,
+  /// episodes as lists.
+  static const rootExtras = <String, dynamic>{
+    contentStyleSupported: true,
+    browsableHint: grid,
+    playableHint: list,
+    searchSupported: true,
+  };
+}
+
+/// See [_Car.rootExtras].
+const carBrowseRootExtras = _Car.rootExtras;
 
 /// Bridges [PlayerController] to Android's MediaSession / MediaBrowserService
 /// (notification, lock screen, Bluetooth buttons and Android Auto).
@@ -60,8 +93,7 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
   DateTime _lastSync = DateTime(0);
   final _known = <String, FeedItem>{};
 
-  static const _new = 'new';
-  static const _progress = 'progress';
+  static const _home = 'home';
   static const _subs = 'subs';
   static const _liked = 'liked';
   static const _downloads = 'downloads';
@@ -79,25 +111,40 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
     _lastSync = DateTime.now();
     final item = controller.current;
     if (item != null) {
-      final m = _toMediaItem(item, duration: controller.duration);
+      final m = _toMediaItem(item, duration: controller.duration, local: true);
       // MediaItem equality only looks at the id: also republish when the
       // real duration arrives, or the car shows no progress bar.
       final prev = mediaItem.value;
-      if (prev != m || prev?.duration != m.duration) mediaItem.add(m);
+      if (prev != m || prev?.duration != m.duration || prev?.artUri != m.artUri) {
+        mediaItem.add(m);
+      }
     }
     queue.add([for (final q in controller.queue) _toMediaItem(q)]);
+    // Android 13+ builds the media card from these: play/pause, then the
+    // custom actions in order (-15 s, +30 s, speed, next episode).
     playbackState.add(PlaybackState(
       controls: [
-        MediaControl.rewind,
+        _rewindControl,
         if (controller.playing) MediaControl.pause else MediaControl.play,
-        MediaControl.fastForward,
-        if (controller.queue.isNotEmpty) MediaControl.skipToNext,
+        _forwardControl,
+        MediaControl.custom(
+          androidIcon: 'drawable/ic_speed',
+          label: 'Vitesse ${_rateLabel(controller.rate)}',
+          name: _speedAction,
+        ),
+        if (controller.queue.isNotEmpty)
+          MediaControl.custom(
+            androidIcon: 'drawable/audio_service_skip_next',
+            label: 'Épisode suivant',
+            name: _nextAction,
+          ),
       ],
       systemActions: const {
         MediaAction.seek,
         MediaAction.seekForward,
         MediaAction.seekBackward,
         MediaAction.playPause,
+        MediaAction.setSpeed,
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: item == null
@@ -116,19 +163,67 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
     ));
   }
 
-  MediaItem _toMediaItem(FeedItem item, {Duration? duration}) {
+  static const _rewindAction = 'rewind15';
+  static const _forwardAction = 'forward30';
+  static const _speedAction = 'speed';
+  static const _nextAction = 'nextEpisode';
+  static const _rates = [1.0, 1.25, 1.5, 2.0];
+
+  static final _rewindControl = MediaControl.custom(
+    androidIcon: 'drawable/ic_replay_15',
+    label: 'Reculer de 15 s',
+    name: _rewindAction,
+  );
+  static final _forwardControl = MediaControl.custom(
+    androidIcon: 'drawable/ic_forward_30',
+    label: 'Avancer de 30 s',
+    name: _forwardAction,
+  );
+
+  static String _rateLabel(double r) =>
+      '${r.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '').replaceAll('.', ',')}x';
+
+  /// [local]: use the cover saved on the device (current item only:
+  /// Android Auto cannot read the app's private files for browse items,
+  /// but the notification and car player get the decoded bitmap).
+  MediaItem _toMediaItem(
+    FeedItem item, {
+    Duration? duration,
+    bool local = false,
+    String? group,
+    bool tile = false,
+  }) {
     _known[item.episode.id] = item;
     final art = item.episode.imageUrl ?? item.podcast.imageUrl;
+    final file = local ? ArtworkCache.fileFor(art) : null;
     return MediaItem(
       id: '$_episodePrefix${item.episode.id}',
       title: item.episode.title,
       album: item.podcast.title,
       artist: item.podcast.author ?? item.podcast.title,
       duration: duration ?? item.episode.duration,
-      artUri: art == null ? null : Uri.tryParse(art),
+      artUri: file != null ? Uri.file(file.path) : (art == null ? null : Uri.tryParse(art)),
       playable: true,
-      extras: {'podcastId': item.podcast.id},
+      extras: {
+        'podcastId': item.podcast.id,
+        ..._progressExtras(item.episode),
+        _Car.groupTitle: ?group,
+        if (tile) _Car.singleItemHint: _Car.grid,
+      },
     );
+  }
+
+  Map<String, dynamic> _progressExtras(Episode e) {
+    final st = library.state(e.id);
+    if (st == null) return const {_Car.completionStatus: _Car.notPlayed};
+    if (st.played) return const {_Car.completionStatus: _Car.fullyPlayed};
+    final total = e.duration?.inMilliseconds ?? 0;
+    if (st.position <= Duration.zero) return const {_Car.completionStatus: _Car.notPlayed};
+    return {
+      _Car.completionStatus: _Car.partiallyPlayed,
+      if (total > 0)
+        _Car.completionPercentage: (st.position.inMilliseconds / total).clamp(0.0, 1.0).toDouble(),
+    };
   }
 
   MediaItem _folder(String id, String title, {String? art}) => MediaItem(
@@ -177,8 +272,28 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
   Future<void> fastForward() => controller.skip(const Duration(seconds: 30));
   @override
   Future<void> rewind() => controller.skip(const Duration(seconds: -15));
+
+  /// Steering wheel / headset "next" and "previous": podcast-style jumps.
   @override
-  Future<void> skipToNext() => controller.skipToNext();
+  Future<void> skipToNext() => fastForward();
+  @override
+  Future<void> skipToPrevious() => rewind();
+
+  @override
+  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
+    switch (name) {
+      case _rewindAction:
+        return rewind();
+      case _forwardAction:
+        return fastForward();
+      case _speedAction:
+        final i = _rates.indexWhere((r) => (r - controller.rate).abs() < 0.01);
+        return controller.setRate(_rates[(i + 1) % _rates.length]);
+      case _nextAction:
+        return controller.skipToNext();
+    }
+    return super.customAction(name, extras);
+  }
   @override
   Future<void> setSpeed(double speed) => controller.setRate(speed);
 
@@ -194,9 +309,9 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
     unawaited(controller.setBackgroundMode(true));
     switch (parentMediaId) {
       case AudioService.browsableRootId:
+        // Android Auto shows the first 4 root folders as tabs.
         return [
-          _folder(_new, 'Nouveautés'),
-          _folder(_progress, 'En cours'),
+          _folder(_home, 'Accueil'),
           _folder(_subs, 'Abonnements'),
           _folder(_liked, 'Likés'),
           _folder(_downloads, 'Téléchargés'),
@@ -204,10 +319,8 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
       case AudioService.recentRootId:
         final items = await library.inProgress();
         return [for (final i in items.take(10)) _toMediaItem(i)];
-      case _new:
-        return [for (final i in (await library.newReleases()).take(50)) _toMediaItem(i)];
-      case _progress:
-        return [for (final i in await library.inProgress()) _toMediaItem(i)];
+      case _home:
+        return _homeItems();
       case _liked:
         return [for (final i in await library.liked()) _toMediaItem(i)];
       case _downloads:
@@ -223,6 +336,25 @@ class BetterCastAudioHandler extends BaseAudioHandler with QueueHandler {
       return [for (final i in items.take(100)) _toMediaItem(i)];
     }
     return const [];
+  }
+
+  /// "Reprendre": big tiles for what is being listened to (the current
+  /// episode first), then the latest episodes as a list.
+  Future<List<MediaItem>> _homeItems() async {
+    final current = controller.current;
+    final resume = <FeedItem>[
+      ?current,
+      for (final i in await library.inProgress())
+        if (i.episode.id != current?.episode.id) i,
+    ].take(6);
+    final resumeIds = {for (final i in resume) i.episode.id};
+    final news = (await library.newReleases())
+        .where((i) => !resumeIds.contains(i.episode.id))
+        .take(40);
+    return [
+      for (final i in resume) _toMediaItem(i, group: 'Reprendre', tile: true),
+      for (final i in news) _toMediaItem(i, group: 'Nouveautés'),
+    ];
   }
 
   @override

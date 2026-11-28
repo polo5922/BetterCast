@@ -42,8 +42,15 @@ Future<void> main() async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.bettercast.playback',
         androidNotificationChannelName: 'Lecture',
-        androidNotificationIcon: 'mipmap/ic_launcher',
+        androidNotificationIcon: 'drawable/ic_stat_bettercast',
         androidStopForegroundOnPause: true,
+        // Sharp cover for the media card background (notification, lock
+        // screen, Android Auto).
+        artDownscaleWidth: 720,
+        artDownscaleHeight: 720,
+        androidBrowsableRootExtras: carBrowseRootExtras,
+        fastForwardInterval: Duration(seconds: 30),
+        rewindInterval: Duration(seconds: 15),
       ),
     );
   } else if (Platform.isWindows) {

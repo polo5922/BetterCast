@@ -71,6 +71,9 @@ class AppMediaLibrary implements MediaLibrary {
   }
 
   @override
+  EpisodeState? state(String episodeId) => container.read(episodeStatesProvider)[episodeId];
+
+  @override
   Future<List<SearchResult>> search(String query) =>
       container.read(apiProvider).search(query);
 }

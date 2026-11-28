@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:audio_service/audio_service.dart';
 
 import 'package:app_links/app_links.dart';
 import 'package:bettercast_core/bettercast_core.dart';
@@ -118,6 +121,14 @@ class _BetterCastAppState extends ConsumerState<BetterCastApp> {
         ?..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(m)));
     }));
+    // Media notification tap -> full player.
+    if (Platform.isAndroid) {
+      _subs.add(AudioService.notificationClicked.where((c) => c).listen((_) {
+        if (ref.read(playerProvider).current == null) return;
+        final at = router.routerDelegate.currentConfiguration.uri.path;
+        if (at != '/player') router.push('/player');
+      }));
+    }
     // Notification tap -> podcast page.
     _subs.add(ref.read(notificationsProvider).taps.listen((podcastId) {
       router.push('/podcast/$podcastId');
